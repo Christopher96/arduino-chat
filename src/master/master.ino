@@ -16,6 +16,8 @@ void setup(){
 
   // Set slave select (SS) to 1 which means no communication can occur between Master and Slave.
   digitalWrite(SS, HIGH);
+
+  Serial.println("Setup done!");
 }
 
 void  loop(){
@@ -28,8 +30,8 @@ void  loop(){
   // We send the state of our button and receive from slave.
   byte received = SPI.transfer(btnState);
 
-  digitalWrite(BTN_PIN, received);
+  digitalWrite(LED_PIN, received);
   Serial.println(received == 1 ? "Master LED on" : "Master LED off");
 
-  delay(1000);
+  delay(10);
 }
