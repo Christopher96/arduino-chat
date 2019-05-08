@@ -1,3 +1,5 @@
+#include<SPI.h>
+
 void setup(){
 
 }
