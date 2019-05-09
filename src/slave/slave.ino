@@ -1,5 +1,5 @@
 #include <SPI.h>
-#include "constants.h"
+#include <API.h>
 
 // Slave variables
 volatile boolean hasRecieved;
@@ -7,6 +7,7 @@ volatile byte recievedData;
 volatile byte sendData;
 
 void setup(){
+    doSomething();
     Serial.begin(BAUD_RATE);                    // We begin by starting serial communication at the specified baud rate
 
     pinMode(BTN_PIN, INPUT);                    // Set the Button to input
