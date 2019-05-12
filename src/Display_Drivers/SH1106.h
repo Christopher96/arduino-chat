@@ -11,13 +11,12 @@
 #define SH1106_PAGES 8
 #define SH1106_COLUMNS 128
 
-
 #define SH1106_LOW_COLUMN 0x00
 #define SH1106_HIGH_COLUMN 0x10
 
-#define SH1106_PUMP_VOLTAGE 0x30	
+#define SH1106_PUMP_VOLTAGE 0x30
 
-#define SH1106_START_LINE 0x40 
+#define SH1106_START_LINE 0x40
 
 #define SH1106_CONTRAST_CONTROL 0x81
 #define SH1106_CONTRAST_DATA 0x80
@@ -34,7 +33,7 @@
 #define SH1106_MULTIPLEX_DATA 0x3F
 
 #define SH1106_DC_DC_CONTROL 0xAD
-#define SH1106_DC_DC_DATA 0x8B		
+#define SH1106_DC_DC_DATA 0x8B
 
 #define SH1106_DISPLAY_ON 0xAF
 #define SH1106_DISPLAY_OFF 0xAE
@@ -61,10 +60,12 @@
 extern const PROGMEM unsigned char font5x8[][5];
 extern const PROGMEM unsigned char font5x8Width[];
 
-class SH1106 {
+class SH1106
+{
 private:
 	unsigned char buffer[SH1106_BUFFER_SIZE];
 	inline void writeCommand(unsigned char data);
+
 public:
 	void begin();
 	void clear();
@@ -75,11 +76,11 @@ public:
 	void drawHorizontalLine(int x, int y, int x2);
 	void drawRectangle(int x, int y, unsigned int width, unsigned int height);
 	void drawFilledRectangle(int x, int y, unsigned int width, unsigned int height);
-	void drawString(const char* str, unsigned char spacing, int xPos, int yPos);
+	void drawString(const char *str, unsigned char spacing, int xPos, int yPos);
 	void drawChar(char value, int x, int y);
 	void drawInt(int value, unsigned char spacing, int x, int y);
 	unsigned int getCharWidth(char value);
-	unsigned int getStringWidth(const char* str, unsigned char spacing);
+	unsigned int getStringWidth(const char *str, unsigned char spacing);
 	unsigned int getIntWidth(int value, unsigned char spacing);
 };
 
