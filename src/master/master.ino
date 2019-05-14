@@ -1,7 +1,15 @@
 #include <SPI.h>
+#include <SH1106.h>
 #include "constants.h"
 
+SH1106 display;
+
 void setup(){
+  display.begin();
+  display.clear();
+  renderKeyboard();
+  display.update();
+  
   // Set the baud rate for communication.
   Serial.begin(BAUD_RATE);
 
@@ -33,5 +41,21 @@ void  loop(){
   digitalWrite(LED_PIN, received);
   Serial.println(received == 1 ? "Master LED on" : "Master LED off");
 
+  
+  
   delay(10);
+}
+
+int selectedKey = 0;
+
+void renderKeyboard(){
+  char c = 'A';
+  int x = 0;
+  int y = 31;
+  
+  while(c != 0x5B){
+      display.drawChar(c, x, y);
+      x += 7;
+      c++;
+  }
 }
