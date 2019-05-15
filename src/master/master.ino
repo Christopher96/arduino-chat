@@ -12,7 +12,7 @@ SH1106 display;
 char selectedKey = 'A';
 char msg[MSG_SIZE] = "\0";
 int msgCursor = 0;
-char receivedMsg[MSG_SIZE];
+char *receivedMsg;
 boolean viewingReceivedMsg = false;
 
 void setup() {
@@ -29,7 +29,7 @@ void loop() {
   if (viewingReceivedMsg) {
     display.drawString("Received message: ", 2, 0, 0);
     display.drawString(receivedMsg, 2, 64, - display.getStringWidth(msg, 2) / 2, 28);
-    if(selectLeftBtnPressed() || selectRightBtnPressed() || addCharBtnPressed() || deleteCharBtnPressed() || sendCharsBtnPressed()){
+    if (selectLeftBtnPressed() || selectRightBtnPressed() || addCharBtnPressed() || deleteCharBtnPressed() || sendCharsBtnPressed()) {
       viewingReceivedMsg = false;
     }
   } else {
@@ -75,7 +75,7 @@ void loop() {
 
     if (sendCharsBtnPressed()) {
       SPI.transfer(msg, msgCursor);
-      cursorMsg = 0;
+      msgCursor = 0;
     }
 
     char received = SPI.transfer(1);
