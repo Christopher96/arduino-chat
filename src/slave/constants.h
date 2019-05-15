@@ -1,3 +1,3 @@
 #define BAUD_RATE 115200
-#define LED_PIN 7
-#define BTN_PIN 2
+#define DEL_PIN 9
+#define SEND_PIN 8
