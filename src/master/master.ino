@@ -12,53 +12,91 @@ SH1106 display;
 char selectedKey = 'A';
 char msg[MSG_SIZE] = "\0";
 int msgCursor = 0;
+char receivedMsg[MSG_SIZE];
+boolean viewingReceivedMsg = false;
 
 void setup() {
   Serial.begin(9600);
+  SPI.begin();
+  SPI.setClockDivider(SPI_CLOCK_DIV8);
+  digitalWrite(SS, HIGH);
   setupBtns();
   display.begin();
 }
 
 void loop() {
-
   display.clear();
-  updateKeyboard();
-  display.drawString(msg, 2, 64 - display.getStringWidth(msg, 2) / 2, 4);
-  display.update();
+  if (viewingReceivedMsg) {
+    display.drawString("Received message: ", 2, 0, 0);
+    display.drawString(receivedMsg, 2, 64, - display.getStringWidth(msg, 2) / 2, 28);
+    if(selectLeftBtnPressed() || selectRightBtnPressed() || addCharBtnPressed() || deleteCharBtnPressed() || sendCharsBtnPressed()){
+      viewingReceivedMsg = false;
+    }
+  } else {
+    updateKeyboard();
+    display.drawString(msg, 2, 64 - display.getStringWidth(msg, 2) / 2, 4);
 
-  if (selectLeftBtnPressed()) {
-    if (selectedKey == 'A') {
-      selectedKey = ']';
-    } else {
-      selectedKey--;
+    if (selectLeftBtnPressed()) {
+      if (selectedKey == 'A') {
+        selectedKey = ']';
+      } else {
+        selectedKey--;
+      }
     }
-  }
-  else if (selectRightBtnPressed()) {
-    if (selectedKey == ']') {
-      selectedKey = 'A';
-    } else {
-      selectedKey++;
+    else if (selectRightBtnPressed()) {
+      if (selectedKey == ']') {
+        selectedKey = 'A';
+      } else {
+        selectedKey++;
+      }
     }
-  }
-  else if(addCharBtnPressed()){
-      switch(selectedKey){
+    else if (addCharBtnPressed()) {
+      switch (selectedKey) {
         case '[':
           addCharToMsg(' ');
-        break;
+          break;
         case '\\':
           addCharToMsg('!');
-        break;
+          break;
         case ']':
           addCharToMsg('?');
-        break;
+          break;
         default:
           addCharToMsg(selectedKey);
-        break;
+          break;
       }
-  }
-  else if(deleteCharBtnPressed()){
+    }
+    else if (deleteCharBtnPressed()) {
       deleteCharFromMsg();
+    }
+
+    // Nu kan vi kommunicera.
+    digitalWrite(SS, LOW);
+
+    if (sendCharsBtnPressed()) {
+      SPI.transfer(msg, msgCursor);
+      cursorMsg = 0;
+    }
+
+    char received = SPI.transfer(1);
+
+    if (received != 1) {
+      char receiveBuffer[MSG_SIZE];
+      int i = 0;
+      char received = 0;
+
+      while ((received = SPI.transfer(1)) != '\0') {
+        receiveBuffer[i++] = received;
+      }
+
+      receiveBuffer[i] = '\0';
+
+      receivedMsg = receiveBuffer;
+      viewingReceivedMsg = true;
+    }
   }
+
+  display.update();
 }
 
 void setupBtns() {
