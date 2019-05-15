@@ -1,175 +1,205 @@
 #include <SPI.h>
 #include <LiquidCrystal.h>
-#include <Joystick.h>
-#include "constants.h"
 
-// State
-typedef enum { RECEIVING, TYPING, SENDING } State;
-State state;
+#define MSG_SIZE 16
+#define DEL_PIN 9
+#define SEND_PIN 8
+#define JS_X_PIN 0    // analog pin connected to X output
+#define JS_Y_PIN 1    // analog pin connected to Y output
+#define JS_MAX 900    // when to register a movement
+#define JS_MIN 100
 
-// Timely loop
-int lastTime = 0;
-int timeInterval = 200;
-
-// Chat
-int messageIndex = 0;
-int maxLength = 16;
-char currentMessage[16];
 char selectedChar = 'A';
+char msg[MSG_SIZE] = "               ";
+int msgIndex = 0;
+
+bool viewReceivedMsg = false;
+char receivedMsg[MSG_SIZE];
+int receivedMsgIndex = 0;
+
+bool startSending = false;
+int sendIndex = 0;
 
 // LCD
 const int rs = 2, en = 3, d4 = 4, d5 = 5, d6 = 6, d7 = 7;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
-Joystick js = Joystick();
-
-// Slave
-volatile boolean hasRecieved;
-volatile char[16] recievedData;
-volatile byte sendData;
 
 void setup() {
-    Serial.begin(BAUD_RATE);
+  Serial.begin(9600);
 
-    pinMode(DEL_PIN, INPUT);
-    pinMode(SEND_PIN, INPUT);
+  pinMode(DEL_PIN, INPUT);
+  pinMode(SEND_PIN, INPUT);
 
-    // set up the LCD's number of columns and rows:
-    lcd.begin(16, 2);
-    lcd.cursor();
+  lcd.begin(16, 2);
+  lcd.cursor();
 
-    pinMode(MISO, OUTPUT);                      // Send data to master IN
+  pinMode(MISO, OUTPUT);                      // Send data to master IN
+  SPCR |= _BV(SPE);                           // SPI Control Register (SPCR) is used to set SPI in Slave Mode
+  SPI.attachInterrupt();                      // Enable interrupts for SPI communication
 
-    SPCR |= _BV(SPE);                           // SPI Control Register (SPCR) is used to set SPI in Slave Mode
-    SPI.attachInterrupt();                      // Enable interrupts for SPI communication
-
-    Serial.println("Initialized.");
+  Serial.println("Initialized.");
 }
 
-ISR(SPI_STC_vect) {                             // This interrupt routine is called whenever data is recieved from the master
-    if(recievedData != 1) {
-        recievedData = SPDR;                        // Data from master will be stored in the SPI Data Register (SPDR)
-        state = RECIEVING;
-        Serial.println("Data recevied");
-
+// This interrupt routine is called whenever data is recieved from the master
+ISR(SPI_STC_vect) {
+  if (SPDR != 1) {
+    Serial.println("Received: " + SPDR);
+    receivedMsg[receivedMsgIndex++] = SPDR;
+    if (SPDR == '\0') {
+      Serial.println("Stopped receiving");
+      viewReceivedMsg = true;
     }
+  }
 }
-
-bool isIdle = false;
 
 void loop() {
-    switch(state) {
-        case RECIEVING:
-            sendData = 0;
+  if (viewReceivedMsg) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Received Message:");
+    lcd.setCursor(0, 1);
+    lcd.print(receivedMsg);
 
-            if(digitalRead(SEND_PIN) == HIGH) {
-                state = TYPING;
-            } else {
-                lcd.setCursor(0, 1);
-                lcd.print("New message: ");
-                lcd.print(recievedData);
+    while (!sendBtnPressed());
 
-            }
-            break;
-        case TYPING:
-            if(digitalRead(SEND_PIN) == HIGH) {
-                state = SENDING;
-            } else {
-                typing();
-            }
-            break;
-        case SENDING:
-            sendData = currentMessage;
-            break;
-    }
-}
+    lcd.clear();
+    lcd.print(msg);
 
-void recieving() {
-    
-}
+    viewReceivedMsg = false;
+    receivedMsgIndex = 0;
+  } else {
 
-
-void typing() {
-    if(isIdle) {
-        checkJoystick();
-
-        if(digitalRead(DEL_PIN) == HIGH) {
-            deleteChar();
-            delay(100);
-        } else if(digitalRead(SEND_PIN) == HIGH) {
-            sendMessage();
-            delay(100);
-        }
-    } else if (js.isIdle()){
-        isIdle = true;
+    if (joystickUp() && selectedChar != 'Z') {
+      msg[msgIndex] = ++selectedChar;
+      lcd.print(selectedChar);
     }
 
-    if(selectedChar > 'Z') {
+    if (joystickDown() && selectedChar != 'A') {
+      msg[msgIndex] = --selectedChar;
+      lcd.print(selectedChar);
+    }
+
+    if (joystickLeft() && msgIndex != 0) {
+      msgIndex--;
+      if (msg[msgIndex] == ' ') {
         selectedChar = 'A';
+      } else {
+        selectedChar = msg[msgIndex];
+      }
     }
 
-    if(selectedChar < 'A') {
-        selectedChar = 'Z';
+    if (joystickRight() && msgIndex != 15) {
+      msgIndex++;
+      if (msg[msgIndex] == ' ') {
+        selectedChar = 'A';
+      } else {
+        selectedChar = msg[msgIndex];
+      }
     }
 
-    currentMessage[messageIndex] = selectedChar;
-    lcd.setCursor(messageIndex, 0);
-
-}
-
-void checkJoystick() {
-    if(js.isUp()) {
-        nextChar();
-    } else if(js.isDown()) {
-        prevChar();
-    } else if(js.isRight()) {
-        goForward();
-    } else if(js.isLeft()) {
-        goBackward();
+    if (delBtnPressed()) {
+      msg[msgIndex] = ' ';
+      selectedChar = 'A';
+      lcd.print(' ');
     }
-}
 
-void sendMessage() {
-
-}
-
-
-void goBackward() {
-    isIdle = false;
-    messageIndex--;
-    if(messageIndex <= 0) {
-        messageIndex = 0;
+    if (sendBtnPressed()) {
+      Serial.println("Started sending!");
+      startSending = true;
+      sendIndex = 0;
     }
-}
 
-void goForward() {
-    isIdle = false;
-    messageIndex++;
-    if(messageIndex >= maxLength) {
-        messageIndex = maxLength;
+    if (startSending && sendIndex < 16) {
+      SPDR = msg[sendIndex++];
+      Serial.println("Sending: " + SPDR);
+    } else {
+      startSending = false;
+      Serial.println("Stopped sending");
     }
+  }
+
+  lcd.setCursor(msgIndex, 0);
 }
 
-void deleteChar() {
-    isIdle = false;
-    lcd.print(' ');
-    lcd.setCursor(messageIndex, 0);
-    currentMessage[messageIndex] = 0;
-    selectedChar = 'A';
+bool joystickLeft() {
+  static int prevState = 500;
+  if (prevState < 550 && prevState > 450) {
+    if (analogRead(JS_Y_PIN) < JS_MIN) {
+      prevState = 1000;
+      return true;
+    }
+  } else {
+    prevState = analogRead(JS_Y_PIN);
+  }
+
+  return false;
 }
 
-void nextChar() {
-    isIdle = false;
-    selectedChar++; 
-    printChar();
+bool joystickRight() {
+  static int prevState = 500;
+  if (prevState < 550 && prevState > 450) {
+    if (analogRead(JS_Y_PIN) > JS_MAX) {
+      prevState = 1000;
+      return true;
+    }
+  } else {
+    prevState = analogRead(JS_Y_PIN);
+  }
+
+  return false;
 }
 
-void prevChar() {
-    isIdle = false;
-    selectedChar--; 
-    printChar();
+bool joystickUp() {
+  static int prevState = 500;
+  if (prevState < 550 && prevState > 450) {
+    if (analogRead(JS_X_PIN) > JS_MAX) {
+      prevState = 1000;
+      return true;
+    }
+  } else {
+    prevState = analogRead(JS_X_PIN);
+  }
+
+  return false;
 }
 
-void printChar() {
-    lcd.print(selectedChar);
-    lcd.setCursor(messageIndex, 0);
+bool joystickDown() {
+  static int prevState = 500;
+  if (prevState < 550 && prevState > 450) {
+    if (analogRead(JS_X_PIN) < JS_MIN) {
+      prevState = 1000;
+      return true;
+    }
+  } else {
+    prevState = analogRead(JS_X_PIN);
+  }
+
+  return false;
+}
+
+bool delBtnPressed() {
+  static int prevState = 0;
+  if (prevState == 0) {
+    if (digitalRead(DEL_PIN)) {
+      prevState = 1;
+      return true;
+    }
+  } else {
+    prevState = digitalRead(DEL_PIN);
+  }
+  return false;
+}
+
+bool sendBtnPressed() {
+  static int prevState = 0;
+  if (prevState == 0) {
+    if (digitalRead(SEND_PIN)) {
+      prevState = 1;
+      return true;
+    }
+  } else {
+    prevState = digitalRead(SEND_PIN);
+  }
+
+  return false;
 }

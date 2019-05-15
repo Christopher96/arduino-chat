@@ -18,7 +18,7 @@ boolean viewingReceivedMsg = false;
 void setup() {
   Serial.begin(9600);
   SPI.begin();
-  SPI.setClockDivider(SPI_CLOCK_DIV8);
+  SPI.setClockDivider(SPI_CLOCK_DIV8); // 16/8 = 2 MHz.
   digitalWrite(SS, HIGH);
   setupBtns();
   display.begin();
@@ -79,13 +79,15 @@ void loop() {
     }
 
     char received = SPI.transfer(1);
-
+      
     if (received != 1) {
+      Serial.println("Received: " + received);
       char receiveBuffer[MSG_SIZE];
       int i = 0;
-      char received = 0;
+      receiveBuffer[i++] = received;
 
       while ((received = SPI.transfer(1)) != '\0') {
+        Serial.println("Received: " + received);
         receiveBuffer[i++] = received;
       }
 
