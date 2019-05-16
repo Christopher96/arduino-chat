@@ -1,52 +1,202 @@
 #include <SPI.h>
-#include <API.h>
+#include <LiquidCrystal.h>
 
-// Slave variables
-volatile boolean hasRecieved;
-volatile byte recievedData;
-volatile byte sendData;
+#define DEL_PIN 10
+#define SEND_PIN 11
+#define JS_X_PIN 0    // analog pin connected to X output
+#define JS_Y_PIN 1    // analog pin connected to Y output
+#define JS_MAX 900    // when to register a movement
+#define JS_MIN 100
 
-void setup(){
-    doSomething();
-    Serial.begin(BAUD_RATE);                    // We begin by starting serial communication at the specified baud rate
+#include <SoftwareSerial.h>
 
-    pinMode(BTN_PIN, INPUT);                    // Set the Button to input
-    pinMode(LED_PIN, OUTPUT);                   // Set the LED to output 
+// Initializing communication ports
+SoftwareSerial mySerial(8, 9); // TX/RX pins
 
-    // Configuring the serial ports
-    pinMode(MISO, OUTPUT);                      // Send data to master IN
+char selectedChar = 'A';
+char msg[] = "                ";
+int msgIndex = 0;
 
-    SPCR |= _BV(SPE);                           // SPI Control Register (SPCR) is used to set SPI in Slave Mode
-    SPI.attachInterrupt();                      // Enable interrupts for SPI communication
+bool sending = false;
 
-    Serial.println("Initialized.");
+// LCD
+const int rs = 2, en = 3, d4 = 4, d5 = 5, d6 = 6, d7 = 7;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+
+void setup() {
+    Serial.begin(9600);
+    mySerial.begin(9600);   
+
+    pinMode(DEL_PIN, INPUT);
+    pinMode(SEND_PIN, INPUT);
+
+    lcd.begin(16, 2);
+    lcd.cursor();
+    lcd.clear();
 }
 
+String getMessage(){
+    String msg = "";
+    char a;
 
-ISR(SPI_STC_vect) {                             // This interrupt routine is called whenever data is recieved from the master
-    recievedData = SPDR;                        // Data from master will be stored in the SPI Data Register (SPDR)
-    hasRecieved = true;
-    Serial.println("Data recevied");
+    while(mySerial.available()) {
+        a = mySerial.read();
+        msg+=String(a);
+    }
+    return msg;
 }
-
 
 void loop() {
-    if(hasRecieved) {                           // Have we recieved data yet?
-        if(recievedData == 1) {                 // Is the data equal to 1?
-            digitalWrite(LED_PIN, HIGH);        // Yes, turn on the LED
-            Serial.println("LED on");
-        } else {
-            digitalWrite(LED_PIN, LOW);         // No, turn off the LED
-            Serial.println("LED off");
-        }
-        hasRecieved = false;
+    String receivedMsg = getMessage();
+    receivedMsg.trim();
+
+    if(receivedMsg!=""){
+        lcd.noCursor();
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Received Message");
+        lcd.setCursor(0, 1);
+        lcd.print(receivedMsg);
+
+        while (!sendBtnPressed());
+
+        lcd.cursor();
+        lcd.clear();
+        lcd.print(msg);
     } else {
-        sendData = 0;
-        if(digitalRead(BTN_PIN) == HIGH) {      // Is the button pressed?
-            sendData = 1;
-            Serial.println("Button pressed");
+
+        if (joystickUp() && selectedChar != 'Z') {
+            msg[msgIndex] = ++selectedChar;
+            lcd.print(selectedChar);
         }
-        SPDR = sendData;                        // Send the data
+
+        if (joystickDown() && selectedChar != 'A') {
+            msg[msgIndex] = --selectedChar;
+            lcd.print(selectedChar);
+        }
+
+        if (joystickLeft() && msgIndex != 0) {
+            msgIndex--;
+            if (msg[msgIndex] == ' ') {
+                selectedChar = 'A';
+            } else {
+                selectedChar = msg[msgIndex];
+            }
+        }
+
+        if (joystickRight() && msgIndex != 15) {
+            msgIndex++;
+            if (msg[msgIndex] == ' ') {
+                selectedChar = 'A';
+            } else {
+                selectedChar = msg[msgIndex];
+            }
+        }
+
+        if (delBtnPressed()) {
+            msg[msgIndex] = ' ';
+            selectedChar = 'A';
+            lcd.print(' ');
+        }
+
+        if (sendBtnPressed()) {
+            mySerial.println(msg);
+            clearMessage();
+            sending = true;
+        }
     }
-    
+
+    lcd.setCursor(msgIndex, 0);
+}
+
+bool joystickLeft() {
+    static int prevState = 500;
+    if (prevState < 550 && prevState > 450) {
+        if (analogRead(JS_Y_PIN) < JS_MIN) {
+            prevState = 1000;
+            return true;
+        }
+    } else {
+        prevState = analogRead(JS_Y_PIN);
+    }
+
+    return false;
+}
+
+bool joystickRight() {
+    static int prevState = 500;
+    if (prevState < 550 && prevState > 450) {
+        if (analogRead(JS_Y_PIN) > JS_MAX) {
+            prevState = 1000;
+            return true;
+        }
+    } else {
+        prevState = analogRead(JS_Y_PIN);
+    }
+
+    return false;
+}
+
+bool joystickUp() {
+    static int prevState = 500;
+    if (prevState < 550 && prevState > 450) {
+        if (analogRead(JS_X_PIN) > JS_MAX) {
+            prevState = 1000;
+            return true;
+        }
+    } else {
+        prevState = analogRead(JS_X_PIN);
+    }
+
+    return false;
+}
+
+bool joystickDown() {
+    static int prevState = 500;
+    if (prevState < 550 && prevState > 450) {
+        if (analogRead(JS_X_PIN) < JS_MIN) {
+            prevState = 1000;
+            return true;
+        }
+    } else {
+        prevState = analogRead(JS_X_PIN);
+    }
+
+    return false;
+}
+
+bool delBtnPressed() {
+    static int prevState = 0;
+    if (prevState == 0) {
+        if (digitalRead(DEL_PIN)) {
+            prevState = 1;
+            return true;
+        }
+    } else {
+        prevState = digitalRead(DEL_PIN);
+    }
+    return false;
+}
+
+bool sendBtnPressed() {
+    static int prevState = 0;
+    if (prevState == 0) {
+        if (digitalRead(SEND_PIN)) {
+            prevState = 1;
+            return true;
+        }
+    } else {
+        prevState = digitalRead(SEND_PIN);
+    }
+
+    return false;
+}
+
+void clearMessage() {
+    msgIndex = 0;
+    lcd.setCursor(0,0);
+    lcd.clear();
+    for(int i = 0; i < 16; i++) {
+        msg[i] = ' ';
+    }
 }
