@@ -6,105 +6,85 @@
 #define ADD_CHAR_BTN_PIN 4
 #define DELETE_CHAR_BTN_PIN 3
 #define SEND_CHARS_BTN_PIN 2
-#define MSG_SIZE 16
+#define MESSAGE_SIZE 16
+#define BAUD_RATE 9600
 
 SH1106 display;
+char message[MESSAGE_SIZE];
+char messageIndex = 0;
+
 char selectedKey = 'A';
-char msg[MSG_SIZE] = "\0";
-int msgCursor = 0;
-char *receivedMsg;
-boolean viewingReceivedMsg = false;
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(BAUD_RATE);
+
   SPI.begin();
   SPI.setClockDivider(SPI_CLOCK_DIV8);
   digitalWrite(SS, HIGH);
-  setupBtns();
-  display.begin();
-}
 
-void loop() {
-  display.clear();
-  if (viewingReceivedMsg) {
-    display.drawString("Received message: ", 2, 0, 0);
-    display.drawString(receivedMsg, 2, 64, - display.getStringWidth(msg, 2) / 2, 28);
-    if (selectLeftBtnPressed() || selectRightBtnPressed() || addCharBtnPressed() || deleteCharBtnPressed() || sendCharsBtnPressed()) {
-      viewingReceivedMsg = false;
-    }
-  } else {
-    updateKeyboard();
-    display.drawString(msg, 2, 64 - display.getStringWidth(msg, 2) / 2, 4);
-
-    if (selectLeftBtnPressed()) {
-      if (selectedKey == 'A') {
-        selectedKey = ']';
-      } else {
-        selectedKey--;
-      }
-    }
-    else if (selectRightBtnPressed()) {
-      if (selectedKey == ']') {
-        selectedKey = 'A';
-      } else {
-        selectedKey++;
-      }
-    }
-    else if (addCharBtnPressed()) {
-      switch (selectedKey) {
-        case '[':
-          addCharToMsg(' ');
-          break;
-        case '\\':
-          addCharToMsg('!');
-          break;
-        case ']':
-          addCharToMsg('?');
-          break;
-        default:
-          addCharToMsg(selectedKey);
-          break;
-      }
-    }
-    else if (deleteCharBtnPressed()) {
-      deleteCharFromMsg();
-    }
-
-    // Nu kan vi kommunicera.
-    digitalWrite(SS, LOW);
-
-    if (sendCharsBtnPressed()) {
-      SPI.transfer(msg, msgCursor);
-      msgCursor = 0;
-    }
-
-    char received = SPI.transfer(1);
-
-    if (received != 1) {
-      char receiveBuffer[MSG_SIZE];
-      int i = 0;
-      char received = 0;
-
-      while ((received = SPI.transfer(1)) != '\0') {
-        receiveBuffer[i++] = received;
-      }
-
-      receiveBuffer[i] = '\0';
-
-      receivedMsg = receiveBuffer;
-      viewingReceivedMsg = true;
-    }
-  }
-
-  display.update();
-}
-
-void setupBtns() {
   pinMode(SELECT_LEFT_BTN_PIN, INPUT);
   pinMode(SELECT_RIGHT_BTN_PIN, INPUT);
   pinMode(ADD_CHAR_BTN_PIN, INPUT);
   pinMode(DELETE_CHAR_BTN_PIN, INPUT);
   pinMode(SEND_CHARS_BTN_PIN, INPUT);
+
+  display.begin();
+}
+
+void loop() {
+  display.clear();
+
+  updateKeyboard();
+
+  display.drawString(message, 2, 64 - display.getStringWidth(message, 2) / 2, 4);
+
+  if (selectLeftBtnPressed()) {
+    if (selectedKey == 'A') {
+      selectedKey = ']';
+    } else {
+      selectedKey--;
+    }
+  }
+  else if (selectRightBtnPressed()) {
+    if (selectedKey == ']') {
+      selectedKey = 'A';
+    } else {
+      selectedKey++;
+    }
+  }
+  else if (addCharBtnPressed()) {
+    switch (selectedKey) {
+      case '[':
+        addCharToMessage(' ');
+        break;
+      case '\\':
+        addCharToMessage('!');
+        break;
+      case ']':
+        addCharToMessage('?');
+        break;
+      default:
+        addCharToMessage(selectedKey);
+        break;
+    }
+  }
+  else if (deleteCharBtnPressed()) {
+    deleteCharFromMessage();
+  }
+  else if (sendCharsBtnPressed()) {
+    digitalWrite(SS, LOW);
+  
+    for(int i = 0; i < MESSAGE_SIZE; i++){
+      SPI.transfer(message[i]);
+      delayMicroseconds(20);
+    }
+    
+    digitalWrite(SS, HIGH);
+
+    clearMessage();
+  }
+
+  display.update();
 }
 
 void updateKeyboard() {
@@ -140,90 +120,97 @@ void updateKeyboard() {
   }
 }
 
-int selectLeftBtnPressed() {
+bool selectLeftBtnPressed() {
   static int previousState = 0;
 
   if (!previousState) {
     if (digitalRead(SELECT_LEFT_BTN_PIN)) {
       previousState = 1;
-      return 1;
+      return true;
     }
   } else {
     previousState = digitalRead(SELECT_LEFT_BTN_PIN);
   }
 
-  return 0;
+  return false;
 }
 
-int selectRightBtnPressed() {
+bool selectRightBtnPressed() {
   static int previousState = 0;
 
   if (!previousState) {
     if (digitalRead(SELECT_RIGHT_BTN_PIN)) {
       previousState = 1;
-      return 1;
+      return true;
     }
   } else {
     previousState = digitalRead(SELECT_RIGHT_BTN_PIN);
   }
 
-  return 0;
+  return false;
 }
 
-int addCharBtnPressed() {
+bool addCharBtnPressed() {
   static int previousState = 0;
 
   if (!previousState) {
     if (digitalRead(ADD_CHAR_BTN_PIN)) {
       previousState = 1;
-      return 1;
+      return true;
     }
   } else {
     previousState = digitalRead(ADD_CHAR_BTN_PIN);
   }
 
-  return 0;
+  return false;
 }
 
-int deleteCharBtnPressed() {
+bool deleteCharBtnPressed() {
   static int previousState = 0;
 
   if (!previousState) {
     if (digitalRead(DELETE_CHAR_BTN_PIN)) {
       previousState = 1;
-      return 1;
+      return true;
     }
   } else {
     previousState = digitalRead(DELETE_CHAR_BTN_PIN);
   }
 
-  return 0;
+  return false;
 }
 
-int sendCharsBtnPressed() {
+bool sendCharsBtnPressed() {
   static int previousState = 0;
 
   if (!previousState) {
     if (digitalRead(SEND_CHARS_BTN_PIN)) {
       previousState = 1;
-      return 1;
+      return true;
     }
   } else {
     previousState = digitalRead(SEND_CHARS_BTN_PIN);
   }
 
-  return 0;
+  return false;
 }
 
-void addCharToMsg(char c) {
-  if (msgCursor == 15)
+void addCharToMessage(char c) {
+  if (messageIndex == 15)
     return;
-  msg[msgCursor++] = c;
-  msg[msgCursor] = '\0';
+  message[messageIndex++] = c;
+  message[messageIndex] = '\0';
 }
 
-void deleteCharFromMsg() {
-  if (msgCursor == 0)
+void deleteCharFromMessage() {
+  if (messageIndex == 0)
     return;
-  msg[--msgCursor] = '\0';
+  message[--messageIndex] = '\0';
+}
+
+void clearMessage() {
+  for (int i = 0; i < MESSAGE_SIZE; i++) {
+    message[i] = 0;
+  }
+  messageIndex = 0;
 }
