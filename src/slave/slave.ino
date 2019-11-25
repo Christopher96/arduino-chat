@@ -1,8 +1,8 @@
 #include <SPI.h>
 #include <LiquidCrystal.h>
 
-#define DEL_PIN 10
-#define SEND_PIN 11
+#define DEL_PIN 8
+#define SEND_PIN 9
 #define JS_X_PIN 0    // analog pin connected to X output
 #define JS_Y_PIN 1    // analog pin connected to Y output
 #define JS_MAX 900    // when to register a movement
@@ -11,7 +11,7 @@
 #include <SoftwareSerial.h>
 
 // Initializing communication ports
-SoftwareSerial mySerial(8, 9); // TX/RX pins
+SoftwareSerial mySerial(10, 11); // TX/RX pins
 
 char selectedChar = 'A';
 char msg[] = "                ";
@@ -65,12 +65,12 @@ void loop() {
         lcd.print(msg);
     } else {
 
-        if (joystickUp() && selectedChar != 'Z') {
+        if (joystickDown() && selectedChar != 'Z') {
             msg[msgIndex] = ++selectedChar;
             lcd.print(selectedChar);
         }
 
-        if (joystickDown() && selectedChar != 'A') {
+        if (joystickUp() && selectedChar != 'A') {
             msg[msgIndex] = --selectedChar;
             lcd.print(selectedChar);
         }
