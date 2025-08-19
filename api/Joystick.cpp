@@ -2,7 +2,6 @@
 
 // Constructor
 Joystick::Joystick() {
-    Serial.begin(115200);
 }
 
 bool Joystick::isIdle() {

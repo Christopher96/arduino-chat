@@ -20,6 +20,7 @@ void setup() {
 
   SPI.begin();
   SPI.setClockDivider(SPI_CLOCK_DIV8);
+  pinMode(SS, OUTPUT);
   digitalWrite(SS, HIGH);
 
   pinMode(SELECT_LEFT_BTN_PIN, INPUT);
@@ -29,6 +30,7 @@ void setup() {
   pinMode(SEND_CHARS_BTN_PIN, INPUT);
 
   display.begin();
+  clearMessage();
 }
 
 void loop() {
